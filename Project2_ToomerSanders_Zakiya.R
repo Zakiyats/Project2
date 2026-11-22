@@ -12,21 +12,13 @@ library(gt)
 
 
 
+
 # -------------------------------------------------------------------------
 
 # 2. Create processing function
 
-# process_air_quality()
-#
-# Reads a yearly air quality file and returns a
-# cleaned data frame with one row per day.
-#
-# Arguments:
-#   file = location of csv file
-#   ozone_unit = "ppm" (default) or "ppb"
-#
-# Returns:
-#   Clean tibble of daily pollutant measurements
+# Function to clean and process yearly air quality dataset
+
 #---------------------------------------------------
 
 process_air_quality <- function(file,
@@ -36,23 +28,27 @@ process_air_quality <- function(file,
                   show_col_types = FALSE)
   
   air_clean <- air %>%
-    
+  
+  # rename variables to create simplicicty when using variable names during coding
     rename(
       CO = `Daily Max 8-hour CO Concentration`,
       PM25 = `Daily Mean PM2.5 Concentration`,
       O3 = `Daily Max 8-hour Ozone Concentration`
     ) %>%
     
+   # convert date variable 
     mutate(
       Date = mdy(Date)
     ) %>%
     
+  # remove duplicate measurements 
     distinct()
   
   pollutants <- c("CO", "PM25", "O3")
   
   for(var in pollutants){
-    
+  
+  # take care of negative values
     air_clean[[var]] <- ifelse(
       air_clean[[var]] < 0,
       0,
@@ -70,6 +66,8 @@ process_air_quality <- function(file,
       O3 = ifelse(all(is.na(O3)), NA, mean(O3, na.rm = TRUE)),
       .groups = "drop"
     )
+  
+  #convert ozone units to ppb
   
   if(ozone_unit == "ppb"){
     
@@ -92,6 +90,8 @@ aq2018 <- process_air_quality("AQ_2018.csv")
 aq2019 <- process_air_quality("AQ_2019.csv")
 
 aq2020 <- process_air_quality("AQ_2020.csv")
+
+
 
 
 # -------------------------------------------------------------------------
@@ -132,6 +132,20 @@ aq_all <- aq_all %>%
 # Checking table contents
 
 glimpse(aq_all)
+
+
+#checking rows and missingness
+
+nrow(aq2018)
+nrow(aq2019)
+nrow(aq2020)
+
+sum(is.na(aq_all$CO))
+sum(is.na(aq_all$PM25))
+sum(is.na(aq_all$O3))
+
+# -------------------------------------------------------------------------
+
 
 # 5. Create yearly summary tables
 
@@ -201,10 +215,147 @@ table2019
 table2020
 
 
+
+# -------------------------------------------------------------------------
+
+
 # 6. Create Plot 1
+
+#select only month name, co, and o3
+plot1_data <- aq_all %>%
+  select(Month_Name, CO, O3) %>%
+  
+#putting co and 03 under categories
+  pivot_longer(
+    cols = c(CO, O3),
+    names_to = "Pollutant",
+    values_to = "Concentration"
+  ) %>%
+  
+  group_by(Month_Name, Pollutant) %>%
+  
+
+  #calculating Confidence Intervals
+  summarise(
+    mean = mean(Concentration, na.rm = TRUE),
+    sd = sd(Concentration, na.rm = TRUE),
+    n = sum(!is.na(Concentration)),
+    se = sd / sqrt(n),
+    
+    lower = mean - 1.96 * se,
+    upper = mean + 1.96 * se,
+    
+    .groups = "drop"
+  )
+
+head(plot1_data)
+
+
+#plot the monthly average CO and O3 with confidence intervals
+
+plot1 <- ggplot(
+  plot1_data,
+  aes(
+    x = Month_Name,
+    y = mean,
+    color = Pollutant,
+    group = Pollutant
+  )
+) +
+  
+  geom_line(size = 1) +
+  
+  geom_point(size = 2) +
+  
+  geom_errorbar(
+    aes(
+      ymin = lower,
+      ymax = upper
+    ),
+    width = 0.2
+  ) +
+  
+  facet_wrap(
+    ~ Pollutant,
+    scales = "free_y"
+  ) +
+  
+  labs(
+    title = "Monthly Average CO and O3 Concentrations",
+    x = "Month",
+    y = "Mean Concentration",
+    color = "Pollutant"
+  ) +
+  
+  theme_minimal()
+
+plot1
+
+
+
+# -------------------------------------------------------------------------
+
 
 # 7. Create Plot 2
 
+# group by year and month since these are the values of interest
+plot2_data <- aq_all %>%
+  group_by(Year, Month_Name) %>%
+  summarise(
+    mean = mean(PM25, na.rm = TRUE),
+    sd = sd(PM25, na.rm = TRUE),
+    n = sum(!is.na(PM25)),
+    se = sd / sqrt(n),
+    
+    lower = mean - 1.96 * se,
+    upper = mean + 1.96 * se,
+    
+    .groups = "drop"
+  )
+
+
+# create plot for monthly avg PM2.5 per year
+
+plot2 <- ggplot(
+  plot2_data,
+  aes(
+    x = Month_Name,
+    y = mean,
+    color = factor(Year),
+    group = Year
+  )
+) +
+  
+  geom_line(size = 1) +
+  
+  geom_point(size = 2) +
+  
+  geom_errorbar(
+    aes(
+      ymin = lower,
+      ymax = upper
+    ),
+    width = 0.20
+  ) +
+  
+  labs(
+    title = "Monthly Average PM2.5 Concentrations by Year",
+    x = "Month",
+    y = "Mean PM2.5 Concentration (µg/m³)",
+    color = "Year"
+  ) +
+  
+  theme_minimal()
+
+plot2
+
+
+# -------------------------------------------------------------------------
+
+
 # 8. Interpretation
 
+# The monthly average plots for CO and O3 showed noticeable seasonal trends, where CO reached the highest averages during the winter months, and O3 averaging the most during summer months.On the other hand, PM2.5 showed a variety of patterns between the months for each year.These differences can be seen between 2018 and 2019, but there was only 121 days of data available for the year 2020. 
+
 # 9. AI Use Statement
+# Microsoft Copilot was used to assist with debugging R code, organizing the project workflow, and explaining statistical concepts. All code was reviewed, executed, and interpreted by me. The outputs were checked by defining what each line is doing exactly, and if it lined up with the goals of the project.

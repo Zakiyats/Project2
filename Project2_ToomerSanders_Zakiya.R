@@ -29,7 +29,7 @@ process_air_quality <- function(file,
   
   air_clean <- air %>%
   
-  # rename variables to create simplicicty when using variable names during coding
+  # rename variables to create simplicity when using variable names during coding
     rename(
       CO = `Daily Max 8-hour CO Concentration`,
       PM25 = `Daily Mean PM2.5 Concentration`,
@@ -48,7 +48,7 @@ process_air_quality <- function(file,
   
   for(var in pollutants){
   
-  # take care of negative values
+  # take care of negative values by setting them equal to zero
     air_clean[[var]] <- ifelse(
       air_clean[[var]] < 0,
       0,
@@ -60,6 +60,7 @@ process_air_quality <- function(file,
     
     group_by(Date) %>%
     
+  # find average of duplicate entries
     summarise(
       CO = ifelse(all(is.na(CO)), NA, mean(CO, na.rm = TRUE)),
       PM25 = ifelse(all(is.na(PM25)), NA, mean(PM25, na.rm = TRUE)),

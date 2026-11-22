@@ -4,6 +4,9 @@ author: "Za'Kiya Toomer-Sanders"
 date: "`r Sys.Date()`"
 output: word_document
 ---
+```{r}
+#github link https://github.com/Zakiyats/Project2.git
+```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(

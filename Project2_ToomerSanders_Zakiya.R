@@ -19,6 +19,13 @@ library(gt)
 
 # Function to clean and process yearly air quality dataset
 
+# Arguments:
+  #   file_path = location of csv file
+  #   ozone_unit = "ppm" (default) or "ppb"
+  #
+  # Returns:
+  #   Clean tibble of daily pollutant measurements
+
 #---------------------------------------------------
 
 process_air_quality <- function(file,

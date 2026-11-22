@@ -1,0 +1,434 @@
+---
+title: "Project 2: Air Quality Data Processing and Visualization"
+author: "Za'Kiya Toomer-Sanders"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+This project analyzes air quality data from 2018, 2019, and 2020 containing measurements of carbon monoxide (CO), particulate matter (PM2.5), and ozone (O₃). The data were cleaned, combined, summarized, and visualized to examine yearly and seasonal patterns in pollutant concentrations.
+
+----------------------------------------------------------------
+```{r}
+# ----------------------------------------------------------------
+
+# 1. Load packages
+library(tidyverse)
+library(lubridate)
+library(gt)
+
+
+
+```
+
+# Data Processing 
+
+The process_air_quality() function was created to clean and process each yearly air quality dataset. 
+The function imports the data from the CSV files, renames pollutant variables to shorter names (CO, PM25, and O3), converts the date variable to date format (month, day, year), removes duplicate records, replaces negative pollutant concentrations with zero, averages observations recorded on the same day, and returns a cleaned dataset containing one row per day.
+
+----------------------------------------------------------------
+```{r}
+# -----------------------------------------------------------------
+
+# 2. Create processing function
+
+#Function to clean and process yearly air quality dataset
+
+
+# Arguments:
+  #   file_path = location of csv file
+  #   ozone_unit = "ppm" (default) or "ppb"
+  #
+  # Returns:
+  #   Clean tibble of daily pollutant measurements
+
+#---------------------------------------------------
+
+process_air_quality <- function(file,
+                                ozone_unit = "ppm") {
+  
+  air <- read_csv(file,
+                  show_col_types = FALSE)
+  
+  air_clean <- air %>%
+  
+  #rename variables to create simplicity when using variable names during coding
+    rename(
+      CO = `Daily Max 8-hour CO Concentration`,
+      PM25 = `Daily Mean PM2.5 Concentration`,
+      O3 = `Daily Max 8-hour Ozone Concentration`
+    ) %>%
+    
+   #convert date variable 
+    mutate(
+      Date = mdy(Date)
+    ) %>%
+    
+  #remove duplicate measurements 
+    distinct()
+  
+  pollutants <- c("CO", "PM25", "O3")
+  
+  for(var in pollutants){
+  
+  #take care of negative values by setting them equal to zero
+    air_clean[[var]] <- ifelse(
+      air_clean[[var]] < 0,
+      0,
+      air_clean[[var]]
+    )
+  }
+  
+  air_clean <- air_clean %>%
+    
+    group_by(Date) %>%
+    
+  #find average of duplicate entries
+    summarise(
+      CO = ifelse(all(is.na(CO)), NA, mean(CO, na.rm = TRUE)),
+      PM25 = ifelse(all(is.na(PM25)), NA, mean(PM25, na.rm = TRUE)),
+      O3 = ifelse(all(is.na(O3)), NA, mean(O3, na.rm = TRUE)),
+      .groups = "drop"
+    )
+  
+  #convert ozone units to ppb
+  
+  if(ozone_unit == "ppb"){
+    
+    air_clean <- air_clean %>%
+      mutate(O3 = O3 * 1000)
+    
+  }
+  
+  return(air_clean)
+}
+
+```
+
+
+```{r}
+# ----------------------------------------------------------------
+
+# 3. Process each dataset
+
+aq2018 <- process_air_quality("AQ_2018.csv")
+
+aq2019 <- process_air_quality("AQ_2019.csv")
+
+aq2020 <- process_air_quality("AQ_2020.csv")
+
+```
+
+
+```{r, include=FALSE}
+# ----------------------------------------------------------------
+
+
+# 4. Combine datasets
+
+
+#Add year variable 
+aq2018 <- aq2018 %>%
+  mutate(Year = 2018)
+
+aq2019 <- aq2019 %>%
+  mutate(Year = 2019)
+
+aq2020 <- aq2020 %>%
+  mutate(Year = 2020)
+
+
+#combine data 
+aq_all <- bind_rows(
+  aq2018,
+  aq2019,
+  aq2020
+)
+
+
+#Add month labels  
+aq_all <- aq_all %>%
+  mutate(
+    Month = month(Date),
+    Month_Name = month(Date,
+                       label = TRUE,
+                       abbr = TRUE)
+  )
+
+
+#Checking table contents
+
+glimpse(aq_all)
+
+
+#checking rows and missingness
+
+nrow(aq2018)
+nrow(aq2019)
+nrow(aq2020)
+
+sum(is.na(aq_all$CO))
+sum(is.na(aq_all$PM25))
+sum(is.na(aq_all$O3))
+```
+----------------------------------------------------------------
+
+# Summary tables
+
+```{r, include=FALSE}
+# ----------------------------------------------------------------
+
+
+# 5. Create yearly summary tables
+
+create_summary_table <- function(data, year_label){
+  
+#Find min and max of CO, PM2.5, and O3
+  data %>%
+    summarise(
+      `CO Min (ppm)` = min(CO, na.rm = TRUE),
+      `CO Max (ppm)` = max(CO, na.rm = TRUE),
+      
+      `PM2.5 Min (ug/m3)` = min(PM25, na.rm = TRUE),
+      `PM2.5 Max (ug/m3)` = max(PM25, na.rm = TRUE),
+      
+      `O3 Min (ppm)` = min(O3, na.rm = TRUE),
+      `O3 Max (ppm)` = max(O3, na.rm = TRUE)
+    ) %>%
+  
+  #Produce cleaner table format 
+    pivot_longer(
+      everything(),
+      names_to = "Measure",
+      values_to = "Value"
+    ) %>%
+    
+    gt() %>%
+    
+  #Rounding decimals 
+  
+    fmt_number(
+      columns = Value,
+      decimals = 3
+    ) %>%
+    
+    tab_header(
+      title = paste(
+        "Minimum and Maximum Daily Pollutant Concentrations:",
+        year_label
+      )
+    )
+}
+
+
+
+#Create tables for all 3 measurements 
+
+table2018 <- create_summary_table(
+  filter(aq_all, Year == 2018),
+  "2018"
+)
+
+table2019 <- create_summary_table(
+  filter(aq_all, Year == 2019),
+  "2019"
+)
+
+table2020 <- create_summary_table(
+  filter(aq_all, Year == 2020),
+  "2020"
+)
+
+
+
+```
+
+
+```{r}
+#outputting tables
+table2018
+
+table2019
+
+table2020
+
+```
+
+----------------------------------------------------------------
+
+# Plot 1 
+```{r, include=FALSE}
+
+# 6. Create Plot 1
+
+#select only month name, co, and o3
+plot1_data <- aq_all %>%
+  select(Month_Name, CO, O3) %>%
+  
+#putting co and 03 under categories
+  pivot_longer(
+    cols = c(CO, O3),
+    names_to = "Pollutant",
+    values_to = "Concentration"
+  ) %>%
+  
+  group_by(Month_Name, Pollutant) %>%
+  
+
+  #calculating Confidence Intervals
+  summarise(
+    mean = mean(Concentration, na.rm = TRUE),
+    sd = sd(Concentration, na.rm = TRUE),
+    n = sum(!is.na(Concentration)),
+    se = sd / sqrt(n),
+    
+    lower = mean - 1.96 * se,
+    upper = mean + 1.96 * se,
+    
+    .groups = "drop"
+  )
+
+head(plot1_data)
+
+
+#plot the monthly average CO and O3 with confidence intervals
+
+plot1 <- ggplot(
+  plot1_data,
+  aes(
+    x = Month_Name,
+    y = mean,
+    color = Pollutant,
+    group = Pollutant
+  )
+) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(ymin = lower, ymax = upper),
+    width = 0.2
+  ) +
+  facet_wrap(~Pollutant, scales = "free_y") +
+  labs(
+    title = "Monthly Average CO and O3 Concentrations",
+    x = "Month",
+    y = "Mean Concentration"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      vjust = 1
+    )
+  )
+
+
+
+
+```
+
+
+```{r, fig.width=10, fig.height=5}
+
+#output plot 1
+
+plot1
+
+```
+
+
+The CO and O₃ concentrations were displayed separately because the pollutants are measured on  different concentration ranges. Using separate scales makes the seasonal patterns of both pollutants easier to see and prevents the smaller O₃ values from being overshadowed by the larger CO values.
+
+---------------------------------------------------------------
+
+# Plot 2
+```{r}
+# ---------------------------------------------------------------
+
+
+# 7. Create Plot 2
+
+#group by year and month since these are the values of interest
+plot2_data <- aq_all %>%
+  group_by(Year, Month_Name) %>%
+  summarise(
+    mean = mean(PM25, na.rm = TRUE),
+    sd = sd(PM25, na.rm = TRUE),
+    n = sum(!is.na(PM25)),
+    se = sd / sqrt(n),
+    
+    lower = mean - 1.96 * se,
+    upper = mean + 1.96 * se,
+    
+    .groups = "drop"
+  )
+
+
+#create plot for monthly avg PM2.5 per year
+
+plot2 <- ggplot(
+  plot2_data,
+  aes(
+    x = Month_Name,
+    y = mean,
+    color = factor(Year),
+    group = Year
+  )
+) +
+  
+  geom_line(size = 1) +
+  
+  geom_point(size = 2) +
+  
+  geom_errorbar(
+    aes(
+      ymin = lower,
+      ymax = upper
+    ),
+    width = 0.20
+  ) +
+  
+  labs(
+    title = "Monthly Average PM2.5 Concentrations by Year",
+    x = "Month",
+    y = "Mean PM2.5 Concentration (µg/m³)",
+    color = "Year"
+  ) +
+  
+  theme_minimal()
+
+plot2
+```
+
+A line plot was used because it effectively displays changes in monthly PM2.5 concentrations over time and displays comparisons across years, while error bars show the precision of the estimated means.
+
+----------------------------------------------------------------
+# Table & Plot Interpretations
+
+The monthly average plots for CO and O3 showed noticeable seasonal trends, where CO reached the highest averages during the winter months, and O3 averaging the most during summer months.On the other hand, PM2.5 showed a variety of patterns between the months for each year.These differences can be seen between 2018 and 2019, but there was only 121 days of data available for the year 2020. 
+
+# AI Use Statement
+
+Microsoft Copilot was used to assist with debugging R code, organizing the project workflow, and explaining statistical concepts. All code was reviewed, executed, and interpreted by me. The outputs were checked by defining what each line is doing exactly, and if it lined up with the goals of the project.
+
+```{r}
+# ----------------------------------------------------------------
+
+
+# 8. Interpretation
+
+#The monthly average plots for CO and O3 showed noticeable seasonal trends, where CO reached the highest averages during the winter months, and O3 averaging the most during summer months.On the other hand, PM2.5 showed a variety of patterns between the months for each year.These differences can be seen between 2018 and 2019, but there was only 121 days of data available for the year 2020. 
+
+# 9. AI Use Statement
+#Microsoft Copilot was used to assist with debugging R code, organizing the project workflow, and explaining statistical concepts. All code was reviewed, executed, and interpreted by me. The outputs were checked by defining what each line is doing exactly, and if it lined up with the goals of the project.
+
+```
+

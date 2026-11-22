@@ -270,37 +270,33 @@ plot1 <- ggplot(
     group = Pollutant
   )
 ) +
-  
   geom_line(size = 1) +
-  
   geom_point(size = 2) +
-  
   geom_errorbar(
-    aes(
-      ymin = lower,
-      ymax = upper
-    ),
+    aes(ymin = lower, ymax = upper),
     width = 0.2
   ) +
-  
-  facet_wrap(
-    ~ Pollutant,
-    scales = "free_y"
-  ) +
-  
+  facet_wrap(~Pollutant, scales = "free_y") +
   labs(
     title = "Monthly Average CO and O3 Concentrations",
     x = "Month",
-    y = "Mean Concentration",
-    color = "Pollutant"
+    y = "Mean Concentration"
   ) +
-  
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      angle = 45,
+      hjust = 1,
+      vjust = 1
+    )
+  )
+
+
 
 plot1
 
-
-
+#Plot note:
+# The CO and O₃ concentrations were displayed separately because the pollutants are measured on  different concentration ranges. Using separate scales makes the seasonal patterns of both pollutants easier to see and prevents the smaller O₃ values from being overshadowed by the larger CO values.
 # -------------------------------------------------------------------------
 
 
@@ -357,7 +353,9 @@ plot2 <- ggplot(
 
 plot2
 
+#Plot note
 
+# A line plot was used because it effectively displays changes in monthly PM2.5 concentrations over time and displays comparisons across years, while error bars show the precision of the estimated means.
 # -------------------------------------------------------------------------
 
 
